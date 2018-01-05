@@ -455,7 +455,9 @@ end subroutine ! make_neig_ls
 ! have. 
 
 
-!To calculate L-J interactions
+!To calculate L-J interactions:
+! Variables that should be global to acces: 
+! n_cells_tot, part_in_cell, cell_neigh_ls, r_nei, l_nei, n_cells, l_cell
 ! First loop over cells, because this is parallelizable with OpenMP
 ! While loops cannot be parallelized
 ! do i_cell = 1, n_cells_tot ! loop over cells
