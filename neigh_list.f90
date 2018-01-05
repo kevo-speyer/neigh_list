@@ -194,10 +194,118 @@ integer, intent(out) :: cell_neigh_ls(n_cells_tot,3**n_dim-1)
 integer :: i_cell
 
 do i_cell = 1, n_cells_tot
-    call make_cell_list(i_cell, n_cells, n_dim, cell_neigh_ls(i_cell,:))
+    call make_cell_list2(i_cell, n_cells, n_dim, cell_neigh_ls(i_cell,:))
+    ! Only half the neighbors are given, in order to loop over all neighbor
+    ! pairs only once
 end do
 
 end subroutine get_cell_neigh_list
+
+subroutine make_cell_list2(in_cell, n_cells, n_dim, cell_list)
+!This routine gives an array with the index of all the neighbouring cells of the
+!input cell. Already corrected fo boundary conditions, assuming PBC in all 
+!directions
+!
+! OPTIMIZATION DONE FOR n_dim = 3: Loop between neighboring cells in one direction only,
+! to count interactions only once. ( do i=2,3; do j=2,3; bla; end do; end do)
+! instead of 3**2-1 neighbors, (3**2 -1 )/2 neighbors.
+implicit none
+integer, intent(in) :: in_cell, n_dim, n_cells(n_dim)
+integer, intent(out) :: cell_list( int( 3**n_dim - 1 / 2) )
+integer :: i_dim, j_dim, i_cell, j_cell, i_list, x_cell, y_cell, z_cell, i, j, k, l
+
+select case(n_dim)
+
+case(1)
+    i_list = 1
+    do i = 2, 3
+        j_cell = in_cell + i - 2
+        if ( j_cell .eq. in_cell ) cycle ! Dont count in_cell as neighbour
+    
+        !HERE CHECK PBC
+        if ( j_cell .eq. 0 ) j_cell = n_cells(1)
+        if ( j_cell .eq. ( n_cells(1) + 1 ) ) j_cell = 1
+
+        cell_list(i_list) = j_cell
+        i_list = i_list + 1
+    end do
+    
+     
+case(2)
+    y_cell = (in_cell - 1) / n_cells(1) + 1  ! Get y coordinate of in_cell
+    x_cell = in_cell - n_cells(1) * (y_cell - 1)
+    i_list = 1
+    do i = 2, 3
+        do j = 1, 3
+            if((i.eq.2).and.(j.eq.3)) cycle
+            j_cell = in_cell + i-2 + (j-2) * n_cells(1)
+            if ( j_cell .eq. in_cell ) cycle ! don't count same cell
+
+            !HERE CHECK FOR PBC IN ALL DIRECTIONS 
+            if ( (x_cell .eq. n_cells(1)) .and. (i.eq.3) ) j_cell = j_cell - n_cells(1)
+            if ( (x_cell .eq. 1) .and. (i.eq.1) ) j_cell = j_cell + n_cells(1)
+            if ( (y_cell .eq. n_cells(2) ) .and. (j.eq.3) ) j_cell = j_cell - n_cells(1)*n_cells(2)    
+            if ( (y_cell .eq. 1) .and. (j.eq.1) ) j_cell = j_cell + n_cells(1)*n_cells(2)           
+            
+            cell_list(i_list) = j_cell
+            i_list = i_list + 1
+        end do
+    end do
+    
+case(3)
+    z_cell = int( (in_cell - 1) / (n_cells(1)*n_cells(2)) + 1 )
+    y_cell = int( ( in_cell - n_cells(1) * n_cells(2) * (z_cell - 1) - 1 ) / n_cells(1) + 1 )
+    x_cell = int( in_cell - n_cells(1) * n_cells(2) * (z_cell - 1) - n_cells(1) * (y_cell - 1)) 
+    i_list = 1
+    do i = 2, 3 ! Go only once over pairs
+        do j = 1, 3
+            if( (i.eq.2) .and. (j.eq.1))  cycle !  Go only once over pairs
+            do k = 1, 3
+                if( (i.eq.2) .and. (j.eq.2) .and. (k.eq.3))  cycle !  Go only once over pairs
+                j_cell = in_cell + i-2 + (j-2) * n_cells(1) + (k-2) * n_cells(2) * n_cells(1)
+                if ( j_cell .eq. in_cell ) cycle
+
+                !HERE CHECK PBC
+                if ( (x_cell .eq. 1) .and. (i.eq.1) ) j_cell = j_cell + n_cells(1)
+                if ( (x_cell .eq. n_cells(1)) .and. (i.eq.3) ) j_cell = j_cell - n_cells(1)
+                if ( (y_cell .eq. 1) .and. (j.eq.1) ) j_cell = j_cell + n_cells(1)*n_cells(2)
+                if ( (y_cell .eq. n_cells(2) ) .and. (j.eq.3) ) j_cell = j_cell - n_cells(1)*n_cells(2) 
+                if ( (z_cell .eq. 1) .and. (k.eq.1) ) j_cell = j_cell + n_cells(1)*n_cells(2)*n_cells(3)
+                if ( (z_cell .eq. n_cells(3) ) .and. (k.eq.3) ) j_cell = j_cell - n_cells(1)*n_cells(2)*n_cells(3)   
+
+                cell_list(i_list) = j_cell
+                i_list = i_list + 1
+            end do
+        end do
+    end do
+    
+case(4)
+    i_list = 1
+    do i = 1, 3
+        do j = 1, 3 
+            do k = 1, 3
+                do l = 1, 3
+                    j_cell = in_cell + i-2 + (j-2) * n_cells(1) + (k-2) * n_cells(2) + (l-2) * n_cells(3)
+                    if ( j_cell .eq. in_cell ) cycle
+                    !HERE CHECK PBC
+                    cell_list(i_list) = j_cell
+                    i_list = i_list + 1
+                end do
+            end do
+        end do
+    end do
+
+case default
+    print*, "ERROR in routine make_cell_list. "
+    print*, "This routine works fine for 3 dimensions or less "
+    call exit()
+
+end select 
+
+end subroutine
+
+
+
 
 subroutine make_cell_list(in_cell, n_cells, n_dim, cell_list)
 !This routine gives an array with the index of all the neighbouring cells of the
@@ -345,3 +453,42 @@ end subroutine ! make_neig_ls
 
 ! neighbor list has the disadvantage of wasting space, which cell list does not
 ! have. 
+
+
+!To calculate L-J interactions
+! First loop over cells, because this is parallelizable with OpenMP
+! While loops cannot be parallelized
+! do i_cell = 1, n_cells_tot ! loop over cells
+!     i_part = part_in_cell(i_cell) ! 
+!     do while(i_part .ne. 0)  ! loop over particles in this cell
+!         do j_dummy = 1, int((3**n_dim-1)/2) ! loop over neighboring cells
+!             j_cell = cell_neigh_ls(i_cell,j_dummy)
+!             j_part = part_in_cell(i_cell) 
+!             do while(j_part .ne. 0)  ! loop over particles in this j_cell  
+!                 !Calculate force r0(:,i_part) - r0(:,j_part)
+!                 j_part = r_nei(j_part) 
+!             end do ! particles in j_cell 
+!         end do  ! loop over neighbor cells
+!
+! Now check interactions in the same cell                            
+!         j_part = part_in_cell(i_cell) 
+!         do while(j_part .ne. 0)  ! loop over particles in this cell
+!             if (i_part .lt. j_part) then !Count interactions just once
+!                 !Calculate force r0(:,i_part) - r0(:,j_part)
+!             end if    
+!             j_part = r_nei(j_part) !gets next particle in this cell     
+!         end do  ! loop over neighbor particles in i_cell, j_part
+!     end do ! loop over particles i_part in i_cell
+! end do !loop over cells                                                    
+!
+
+
+
+
+
+
+
+
+
+
+
