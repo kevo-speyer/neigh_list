@@ -298,3 +298,50 @@ case default
 end select 
 
 end subroutine
+
+subroutine make_neig_ls(part_in_cell, r_nei, r0, n_part, cell_neigh_ls, n_cells_tot, n_dim, n_cells, l_cell, ff_list)
+!This routine is supposed to do do a neighbor Verlet list, from the cell list. 
+! It has a major disadvantage: the number of neighboring particles for each
+! particle is not known a priori, so a lot of space is wasted
+import none
+real(kind=8), intent(in) :: r0(n_dim,n_part), l_cell
+integer, intent(in) :: n_part, n_dim, n_cells(n_dim), cell_neigh_ls( n_cells_tot, 3**n_dim-1), r_nei(n_part), part_in_cell(n_cells_tot)
+integer, intent(out) :: ff_list(0:256,n_part) ! Lot of memory wasted right here
+integer :: i_part, j_part, i_cell, j_cell
+ff_list(0,:) = 0 ! set number of neighbors to zero for all particles
+!loop over all particles
+do i_part=1, n_part 
+    get_cell(r0(:,i_part), n_dim, n_cells, l_cell, i_cell) ! get cell of particle i_part
+    !loop over neighboring cells
+    do j=1,3**n_dim-1                                               
+        j_cell = cell_neigh_ls(i_cell,j)                               
+        j_part = part_in_cell(j_cell)                               
+        do while(j_part .ne. 0)     !loop over particles in neighbor cell
+            !if distance between particles is less than cut-off
+            ff_list(0,i_part) = ff_list(0,i_part) + 1
+            ff_list(ff_list(0,i_part),i_part) = j_part         
+            !end if 
+            j_part = r_nei(j_part) !gets next particle in this cell 
+        end do                                                      
+    end do                                                          
+
+! loop over particles in the same cell also (i_cell)           
+
+    j_part = part_in_cell(i_cell)                                   
+    do while(j_part .ne. 0)                                         
+        if(j_part .gt. i_part) then ! count interactions only once 
+            !if distance between particles is less than cut-off
+            ff_list(0,i_part) = ff_list(0,i_part) + 1
+            ff_list(ff_list(0,i_part),i_part) = j_part
+            !end if 
+        end if                                                      
+    
+       j_part = r_nei(j_part) !gets next particle in this cell     
+    end do                                                         
+end do
+
+end subroutine ! make_neig_ls
+
+
+! neighbor list has the disadvantage of wasting space, which cell list does not
+! have. 
